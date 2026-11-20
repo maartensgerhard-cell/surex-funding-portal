@@ -9,7 +9,7 @@ async function manager(request, env) {
   return user.email?.toLowerCase() === "gerhardm@surex.insure" ? user : null;
 }
 export default async (request) => {
-  const env = Netlify.env;
+  const env = process.env;
   try {
     if (request.method === "POST") {
       const body = await request.json();
