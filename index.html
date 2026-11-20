@@ -67,7 +67,7 @@ form.addEventListener('submit',async(event)=>{
     const response=await fetch('/.netlify/functions/submit-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const result=await response.json();
     if(!response.ok) throw new Error(result.error||'We could not submit your application. Please try again.');
-    message.className='notice success'; message.textContent='Your application has been submitted. Your reference number is '+result.reference+'. A confirmation has been sent to your email address.'; message.style.display='block'; form.reset();
+    message.className='notice success'; message.textContent='Your application has been submitted. Your reference number is '+result.reference+'. Keep this reference number for your records. You can use it if you need to follow up.'; message.style.display='block'; form.reset();
   }catch(error){message.className='notice error';message.textContent=error.message;message.style.display='block';}
   finally{button.disabled=false;button.textContent='Submit funding application';}
 });
