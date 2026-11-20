@@ -14,6 +14,19 @@ export default async (request) => {
     if (request.method === "POST") {
       const body = await request.json();
       const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (body.action === "update_password") {
+        if (!key) return json({ error: "Password recovery is not configured on the server." }, 500);
+        const accessToken = String(body.access_token || "");
+        const password = String(body.password || "");
+        if (!accessToken || password.length < 8) return json({ error: "A valid recovery session and a password of at least 8 characters are required." }, 400);
+        const response = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+          method: "PUT", headers: { apikey: key, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: result.msg || result.message || result.error_description || "Could not update the password." }, 400);
+        return json({ success: true });
+      }
       if (body.action === "request_password_reset") {
         if (!key) return json({ error: "Password recovery is not configured on the server." }, 500);
         const email = String(body.email || "").trim();
