@@ -1,17 +1,9 @@
-const headers = (key, token = key) => ({
-  apikey: key,
-  Authorization: `Bearer ${token}`,
-  "Content-Type": "application/json"
-});
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
-});
+const headers = (key, token = key) => ({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" });
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 async function manager(request, env) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
-  const check = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
-    headers: headers(env.SUPABASE_SERVICE_ROLE_KEY, token)
-  });
+  const check = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: headers(env.SUPABASE_SERVICE_ROLE_KEY, token) });
   if (!check.ok) return null;
   const user = await check.json();
   return user.email?.toLowerCase() === "gerhardm@surex.insure" ? user : null;
@@ -19,6 +11,21 @@ async function manager(request, env) {
 export default async (request) => {
   const env = Netlify.env;
   try {
+    if (request.method === "POST") {
+      const body = await request.json();
+      if (body.action === "login") {
+        const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (!key) return json({ error: "Login is not configured on the server." }, 500);
+        const response = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+          method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
+          body: JSON.stringify({ email: body.email, password: body.password })
+        });
+        const session = await response.json();
+        if (!response.ok) return json({ error: session.msg || session.message || session.error_description || "Sign-in failed." }, 401);
+        if (session.user?.email?.toLowerCase() !== "gerhardm@surex.insure") return json({ error: "This account is not authorised for the manager dashboard." }, 403);
+        return json({ access_token: session.access_token, expires_in: session.expires_in, user: { email: session.user.email } });
+      }
+    }
     const user = await manager(request, env);
     if (!user) return json({ error: "Unauthorised. Please sign in with the manager account." }, 401);
     const base = `${env.SUPABASE_URL}/rest/v1/funding_requests`;
@@ -32,27 +39,14 @@ export default async (request) => {
     }
     if (request.method === "POST") {
       const body = await request.json();
-      if (!body.id || !["approved", "declined"].includes(body.status)) {
-        return json({ error: "Invalid decision." }, 400);
-      }
+      if (!body.id || !["approved", "declined"].includes(body.status)) return json({ error: "Invalid decision." }, 400);
       const update = await fetch(base + "?id=eq." + encodeURIComponent(body.id), {
-        method: "PATCH",
-        headers: { ...headers(key), Prefer: "return=minimal" },
-        body: JSON.stringify({
-          status: body.status,
-          manager_comment: String(body.comment || "").slice(0, 2000),
-          reviewed_by: user.email,
-          reviewed_at: new Date().toISOString()
-        })
+        method: "PATCH", headers: { ...headers(key), Prefer: "return=minimal" },
+        body: JSON.stringify({ status: body.status, manager_comment: String(body.comment || "").slice(0, 2000), reviewed_by: user.email, reviewed_at: new Date().toISOString() })
       });
-      if (!update.ok) {
-        const detail = await update.text();
-        return json({ error: "Could not save the decision.", detail }, 500);
-      }
+      if (!update.ok) return json({ error: "Could not save the decision.", detail: await update.text() }, 500);
       return json({ success: true });
     }
     return json({ error: "Method not allowed." }, 405);
-  } catch (error) {
-    return json({ error: "Server error.", detail: error.message }, 500);
-  }
+  } catch (error) { return json({ error: "Server error.", detail: error.message }, 500); }
 };
