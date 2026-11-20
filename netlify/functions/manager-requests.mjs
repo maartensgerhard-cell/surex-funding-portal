@@ -1,7 +1,7 @@
 const headers = (key, token = key) => ({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" });
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 async function manager(request, env) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
   const check = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: headers(env.SUPABASE_SERVICE_ROLE_KEY, token) });
   if (!check.ok) return null;
