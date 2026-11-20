@@ -4,11 +4,15 @@ const allowedTypes = new Set([
   "School Activation", "Sports Event", "Promotional Activation", "Other"
 ]);
 
-const json = (statusCode, body) => ({
-  statusCode,
-  headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-  body: JSON.stringify(body)
-});
+function json(status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store"
+    }
+  });
+}
 
 function clean(value, max = 3000) {
   return String(value ?? "").trim().slice(0, max);
@@ -18,26 +22,11 @@ function validEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
-async function sendEmail(apiKey, to, subject, text) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: process.env.EMAIL_FROM || "SureX Funding Portal <onboarding@resend.dev>",
-      to: [to], subject, text
-    })
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Email provider returned ${response.status}: ${detail}`);
-  }
-}
-
-export default async (req) => {
-  if (req.method !== "POST") return json(405, { error: "Method not allowed." });
+export default async (request) => {
+  if (request.method !== "POST") return json(405, { error: "Method not allowed." });
 
   try {
-    const data = JSON.parse(req.body || "{}");
+    const data = await request.json();
     if (clean(data.website, 200)) return json(200, { reference: "received" });
 
     const first_name = clean(data.first_name, 80);
@@ -70,6 +59,7 @@ export default async (req) => {
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceKey) {
+      console.error("Missing Supabase server environment variables.");
       return json(503, { error: "The portal is not fully configured yet. Please try again later." });
     }
 
@@ -90,13 +80,12 @@ export default async (req) => {
       },
       body: JSON.stringify(record)
     });
+
     if (!saved.ok) {
       const detail = await saved.text();
       console.error("Supabase insert failed", saved.status, detail);
       return json(500, { error: "We could not save your application. Please try again later." });
     }
-
-
 
     return json(200, { reference });
   } catch (error) {
