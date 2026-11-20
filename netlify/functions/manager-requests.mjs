@@ -1,7 +1,7 @@
 const headers = (key, token = key) => ({ apikey: key, Authorization: `Bearer ${token}`, "Content-Type": "application/json" });
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 async function manager(request, env) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
   if (!token) return null;
   const check = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, { headers: headers(env.SUPABASE_SERVICE_ROLE_KEY, token) });
   if (!check.ok) return null;
@@ -13,8 +13,20 @@ export default async (request) => {
   try {
     if (request.method === "POST") {
       const body = await request.json();
+      const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (body.action === "request_password_reset") {
+        if (!key) return json({ error: "Password recovery is not configured on the server." }, 500);
+        const email = String(body.email || "").trim();
+        if (email.toLowerCase() !== "gerhardm@surex.insure") return json({ error: "This email is not authorised for manager access." }, 403);
+        const redirect = "https://surex-funding-portal.netlify.app/manager-reset.html";
+        const response = await fetch(`${env.SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirect)}`, {
+          method: "POST", headers: { apikey: key, "Content-Type": "application/json" }, body: JSON.stringify({ email })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) return json({ error: result.msg || result.message || result.error_description || "Could not send the recovery email." }, 400);
+        return json({ success: true });
+      }
       if (body.action === "login") {
-        const key = env.VITE_SUPABASE_PUBLISHABLE_KEY;
         if (!key) return json({ error: "Login is not configured on the server." }, 500);
         const response = await fetch(`${env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
           method: "POST", headers: { apikey: key, "Content-Type": "application/json" },
