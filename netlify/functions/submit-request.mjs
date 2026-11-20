@@ -69,8 +69,6 @@ export default async (req) => {
 
     const supabaseUrl = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const managerEmail = process.env.MANAGER_EMAIL || "Gerhardm@surex.insure";
-    const resendKey = process.env.RESEND_API_KEY;
     if (!supabaseUrl || !serviceKey) {
       return json(503, { error: "The portal is not fully configured yet. Please try again later." });
     }
@@ -98,39 +96,7 @@ export default async (req) => {
       return json(500, { error: "We could not save your application. Please try again later." });
     }
 
-    if (!resendKey) {
-      console.error("RESEND_API_KEY is not configured; application saved but email notification is pending setup.", reference);
-    } else {
-      const managerText = [
-        "A new SureX funding application has been submitted.",
-        `Reference: ${reference}`,
-        `Adviser: ${first_name} ${surname}`,
-        `Adviser email: ${adviser_email}`,
-        `Branch: ${branch}`,
-        `Event type: ${event_type}`,
-        `Event date: ${event_date}`,
-        `Venue: ${venue}`,
-        `Expected attendees: ${expected_attendees}`,
-        `Funding requested: R${requested_amount.toFixed(2)}`,
-        `Funding breakdown: ${funding_breakdown}`,
-        `Additional notes: ${additional_notes || "None"}`,
-        "",
-        "Please sign in to the management portal to review this request."
-      ].join("\n");
-      const adviserText = [
-        `Hello ${first_name},`,
-        "",
-        "Your SureX funding application has been received and is awaiting regional approval.",
-        `Your reference number is: ${reference}`,
-        "",
-        "Please do not incur expenditure until written approval has been received.",
-        "We will email you when a decision has been made."
-      ].join("\n");
-      await Promise.all([
-        sendEmail(resendKey, managerEmail, `Funding application received: ${reference}`, managerText),
-        sendEmail(resendKey, adviser_email, `SureX funding application received: ${reference}`, adviserText)
-      ]);
-    }
+
 
     return json(200, { reference });
   } catch (error) {
